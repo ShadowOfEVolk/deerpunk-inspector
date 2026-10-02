@@ -1,4 +1,7 @@
-import type { EventFieldDef } from '../types/protocol';
+export interface BinFieldDef {
+  name: string;
+  type: string;
+}
 
 function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -51,7 +54,7 @@ function readValue(r: BinReader, type: string): unknown {
   }
 }
 
-export function decodeBincode(b64: string, fields: EventFieldDef[]): Record<string, unknown> | null {
+export function decodeBincode(b64: string, fields: BinFieldDef[]): Record<string, unknown> | null {
   if (!fields.length || !b64) return null;
 
   try {

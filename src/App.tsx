@@ -3,14 +3,12 @@ import { Allotment } from 'allotment';
 import 'allotment/dist/style.css';
 import { StatusBar } from './components/StatusBar';
 import { DetailPane } from './components/DetailPane';
-import { CollectionRail, type CollectionId } from './components/CollectionRail';
+import { CollectionRail } from './components/CollectionRail';
+import { CollectionPanel, type CollectionPanelHandle } from './components/CollectionPanel';
 import { useConnection } from './hooks/useConnection';
-import { COLLECTIONS } from './collections/registry';
-import { EntitiesCollection, type EntitiesCollectionHandle } from './collections/entities';
-import { EventsCollection } from './collections/events';
-import { ComponentDefsCollection, EntityDefsCollection, EventDefsCollection } from './collections/definitions';
-import type { InspectorSelection } from './collections/types';
-import type { ConnectionParams, EntitySummary } from './types/protocol';
+import { groupCollections, hasListMode } from './lib/collectionWire';
+import type { InspectorSelection } from './types/protocol';
+import type { ConnectionParams } from './types/protocol';
 
 const REFRESH_OPTIONS = [
   { value: 0, label: '—' },
@@ -32,81 +30,96 @@ export function App() {
   const params = useMemo(() => getParams(), []);
   const conn = useConnection(params);
 
-  const [collection, setCollection] = useState<CollectionId>('entities');
-  const [selection, setSelection] = useState<InspectorSelection>(null);
-  const [entitySummaries, setEntitySummaries] = useState<EntitySummary[]>([]);
-  const [eventsSeenAt, setEventsSeenAt] = useState(0);
-  const [refreshMs, setRefreshMs] = useState(1000);
-  const entitiesRef = useRef<EntitiesCollectionHandle>(null);
+  const collectionGroups = useMemo(() => groupCollections(conn.collections), [conn.collections]);
+  const defaultCollection = conn.collections[0]?.id ?? '';
 
-  const badges = useMemo(() => {
-    const out: Partial<Record<CollectionId, number>> = {};
-    for (const plugin of COLLECTIONS) {
-      if (plugin.badge) {
-        out[plugin.id] = plugin.badge({
-          conn,
-          active: collection === plugin.id,
-          seenAt: eventsSeenAt,
-        });
-      }
-    }
-    return out;
-  }, [conn, collection, eventsSeenAt, conn.events.length]);
+  const [activeCollectionId, setActiveCollectionId] = useState(defaultCollection);
+  const [selection, setSelection] = useState<InspectorSelection | null>(null);
+  const [streamSeenAt, setStreamSeenAt] = useState<Record<string, number>>({});
+  const [refreshMs, setRefreshMs] = useState(1000);
+  const panelRef = useRef<CollectionPanelHandle>(null);
+
+  const activeDescriptor = useMemo(
+    () => conn.collections.find((c) => c.id === activeCollectionId),
+    [conn.collections, activeCollectionId],
+  );
+
+  const entityLookup = useMemo(() => {
+    const entityCol = conn.collections.find((c) => c.modes.includes('list') && c.modes.includes('get'));
+    return entityCol ? conn.listRows[entityCol.id] ?? [] : [];
+  }, [conn.collections, conn.listRows]);
 
   useEffect(() => {
-    if (collection === 'events') setEventsSeenAt(conn.events.length);
-  }, [collection, conn.events.length]);
+    if (conn.collections.length > 0 && !conn.collections.some((c) => c.id === activeCollectionId)) {
+      setActiveCollectionId(conn.collections[0].id);
+      setSelection(null);
+    }
+  }, [conn.collections, activeCollectionId]);
 
-  const handleCollectionChange = useCallback((id: CollectionId) => {
-    setCollection(id);
+  const badges = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const col of conn.collections) {
+      if (!col.modes.includes('stream')) continue;
+      const count = conn.streamRows[col.id]?.length ?? 0;
+      const seen = streamSeenAt[col.id] ?? 0;
+      out[col.id] = activeCollectionId === col.id ? 0 : Math.max(0, count - seen);
+    }
+    return out;
+  }, [conn.collections, conn.streamRows, streamSeenAt, activeCollectionId]);
+
+  useEffect(() => {
+    if (!activeDescriptor?.modes.includes('stream')) return;
+    const count = conn.streamRows[activeDescriptor.id]?.length ?? 0;
+    setStreamSeenAt((prev) => ({ ...prev, [activeDescriptor.id]: count }));
+  }, [activeCollectionId, activeDescriptor, conn.streamRows]);
+
+  const handleCollectionChange = useCallback((id: string) => {
+    setActiveCollectionId(id);
     setSelection(null);
   }, []);
 
-  const handleNavigate = useCallback((id: CollectionId, payload?: { selectEntity?: number }) => {
-    setCollection(id);
-    if (payload?.selectEntity != null) {
+  const handleNavigate = useCallback((collectionId: string, payload?: { selectRow?: string | number }) => {
+    setActiveCollectionId(collectionId);
+    if (payload?.selectRow != null) {
       setSelection(null);
-      setTimeout(() => entitiesRef.current?.select(payload.selectEntity!), 0);
+      setTimeout(() => panelRef.current?.selectRow(payload.selectRow!), 0);
     }
   }, []);
 
-  const panelProps = {
-    conn,
-    active: true,
-    onSelect: setSelection,
-    onNavigate: handleNavigate,
-    entitySummaries,
-    onEntitySummaries: setEntitySummaries,
-  };
-
-  const renderCollection = () => {
-    switch (collection) {
-      case 'entities':
-        return <EntitiesCollection ref={entitiesRef} {...panelProps} refreshMs={refreshMs} />;
-      case 'events':
-        return <EventsCollection {...panelProps} />;
-      case 'component-defs':
-        return <ComponentDefsCollection {...panelProps} />;
-      case 'entity-defs':
-        return <EntityDefsCollection {...panelProps} />;
-      case 'event-defs':
-        return <EventDefsCollection {...panelProps} />;
-    }
-  };
+  const entityCollection = conn.collections.find((c) => c.modes.includes('get') && c.modes.includes('list'));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#1e1e1e' }}>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        <CollectionRail active={collection} onChange={handleCollectionChange} badges={badges} />
+        <CollectionRail
+          groups={collectionGroups}
+          active={activeCollectionId}
+          onChange={handleCollectionChange}
+          badges={badges}
+        />
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <Allotment defaultSizes={[42, 58]} separator>
-            <Allotment.Pane minSize={240}>{renderCollection()}</Allotment.Pane>
-            <Allotment.Pane minSize={360}>
+          <Allotment defaultSizes={[62, 38]} separator>
+            <Allotment.Pane minSize={280}>
+              {activeDescriptor ? (
+                <CollectionPanel
+                  ref={panelRef}
+                  descriptor={activeDescriptor}
+                  conn={conn}
+                  refreshMs={hasListMode(activeDescriptor) ? refreshMs : 0}
+                  onSelect={setSelection}
+                  onNavigate={handleNavigate}
+                  entityLookup={entityLookup}
+                />
+              ) : null}
+            </Allotment.Pane>
+            <Allotment.Pane minSize={300}>
               <DetailPane
                 selection={selection}
                 conn={conn}
-                entitySummaries={entitySummaries}
-                onSelectEntity={(index) => handleNavigate('entities', { selectEntity: index })}
+                entityLookup={entityLookup}
+                onNavigateEntity={(index) => {
+                  if (entityCollection) handleNavigate(entityCollection.id, { selectRow: index });
+                }}
               />
             </Allotment.Pane>
           </Allotment>
@@ -116,7 +129,7 @@ export function App() {
         state={conn.state}
         host={params.host}
         port={params.port}
-        onRefresh={() => entitiesRef.current?.refresh()}
+        onRefresh={() => panelRef.current?.refresh()}
         onReconnect={conn.reconnect}
         refreshMs={refreshMs}
         onRefreshChange={setRefreshMs}

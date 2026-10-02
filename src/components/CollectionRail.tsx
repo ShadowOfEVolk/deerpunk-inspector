@@ -1,94 +1,99 @@
-import { Box, Tooltip } from '@mantine/core';
-import type { CollectionId } from '../collections/types';
-import { RUNTIME_COLLECTIONS, DEFINITION_COLLECTIONS } from '../collections/registry';
-import type { CollectionPlugin } from '../collections/types';
+import { Box, Text } from '@mantine/core';
+import { IconList, IconBook } from '@tabler/icons-react';
+import type { CollectionDescriptor } from '../types/protocol';
 
 interface CollectionRailProps {
-  active: CollectionId;
-  onChange: (id: CollectionId) => void;
-  badges?: Partial<Record<CollectionId, number>>;
+  groups: { runtime: CollectionDescriptor[]; definitions: CollectionDescriptor[] };
+  active: string;
+  onChange: (id: string) => void;
+  badges?: Record<string, number>;
 }
 
 function RailButton({
-  c,
+  descriptor,
   isActive,
   badge,
   onChange,
 }: {
-  c: CollectionPlugin;
+  descriptor: CollectionDescriptor;
   isActive: boolean;
   badge?: number;
-  onChange: (id: CollectionId) => void;
+  onChange: (id: string) => void;
 }) {
+  const icon = descriptor.group === 'definitions'
+    ? <IconBook size={18} stroke={1.5} />
+    : <IconList size={18} stroke={1.5} />;
+
   return (
-    <Tooltip label={c.label} position="right" withArrow>
-      <Box
-        component="button"
-        type="button"
-        onClick={() => onChange(c.id)}
-        style={{
-          position: 'relative',
-          width: 36,
-          height: 36,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          border: 'none',
-          borderRadius: 6,
-          cursor: 'pointer',
-          background: isActive ? '#2cb1bc22' : 'transparent',
-          color: isActive ? '#5eead4' : '#6b7280',
-          borderLeft: isActive ? '2px solid #2cb1bc' : '2px solid transparent',
-          transition: 'background 0.15s, color 0.15s',
-        }}
-        onMouseEnter={(e) => {
-          if (!isActive) {
-            e.currentTarget.style.background = '#1a1d23';
-            e.currentTarget.style.color = '#9ca3af';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isActive) {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#6b7280';
-          }
-        }}
-      >
-        {c.icon}
-        {badge != null && badge > 0 && (
-          <Box
-            style={{
-              position: 'absolute',
-              top: 2,
-              right: 2,
-              minWidth: 14,
-              height: 14,
-              padding: '0 3px',
-              borderRadius: 7,
-              background: '#2cb1bc',
-              color: '#0f1115',
-              fontSize: 9,
-              fontWeight: 700,
-              lineHeight: '14px',
-              textAlign: 'center',
-            }}
-          >
-            {badge > 99 ? '99+' : badge}
-          </Box>
-        )}
-      </Box>
-    </Tooltip>
+    <Box
+      component="button"
+      type="button"
+      onClick={() => onChange(descriptor.id)}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: 34,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '0 10px',
+        border: 'none',
+        borderRadius: 6,
+        cursor: 'pointer',
+        background: isActive ? '#2cb1bc18' : 'transparent',
+        color: isActive ? '#5eead4' : '#9ca3af',
+        borderLeft: isActive ? '2px solid #2cb1bc' : '2px solid transparent',
+        transition: 'background 0.15s, color 0.15s',
+        textAlign: 'left',
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = '#1a1d23';
+          e.currentTarget.style.color = '#d1d5db';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = '#9ca3af';
+        }
+      }}
+    >
+      <Box style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</Box>
+      <Text size="xs" truncate style={{ flex: 1, fontWeight: isActive ? 600 : 500, letterSpacing: 0.2 }}>
+        {descriptor.label}
+      </Text>
+      {badge != null && badge > 0 && (
+        <Box
+          style={{
+            minWidth: 16,
+            height: 16,
+            padding: '0 4px',
+            borderRadius: 8,
+            background: '#2cb1bc',
+            color: '#0f1115',
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: '16px',
+            textAlign: 'center',
+            flexShrink: 0,
+          }}
+        >
+          {badge > 99 ? '99+' : badge}
+        </Box>
+      )}
+    </Box>
   );
 }
 
-export function CollectionRail({ active, onChange, badges }: CollectionRailProps) {
-  const renderGroup = (items: CollectionPlugin[]) =>
-    items.map((c) => (
+export function CollectionRail({ groups, active, onChange, badges }: CollectionRailProps) {
+  const renderGroup = (items: CollectionDescriptor[]) =>
+    items.map((descriptor) => (
       <RailButton
-        key={c.id}
-        c={c}
-        isActive={c.id === active}
-        badge={badges?.[c.id]}
+        key={descriptor.id}
+        descriptor={descriptor}
+        isActive={descriptor.id === active}
+        badge={badges?.[descriptor.id]}
         onChange={onChange}
       />
     ));
@@ -96,30 +101,21 @@ export function CollectionRail({ active, onChange, badges }: CollectionRailProps
   return (
     <Box
       style={{
-        width: 44,
+        width: 168,
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        gap: 4,
-        padding: '8px 0',
+        gap: 2,
+        padding: '8px 6px',
         background: '#101113',
         borderRight: '1px solid #2a2d35',
       }}
     >
-      {renderGroup(RUNTIME_COLLECTIONS)}
-      <Box
-        style={{
-          width: 28,
-          height: 1,
-          margin: '4px 0',
-          background: '#2a2d35',
-          flexShrink: 0,
-        }}
-      />
-      {renderGroup(DEFINITION_COLLECTIONS)}
+      {renderGroup(groups.runtime)}
+      {groups.definitions.length > 0 && (
+        <Box style={{ height: 1, margin: '6px 8px', background: '#2a2d35', flexShrink: 0 }} />
+      )}
+      {renderGroup(groups.definitions)}
     </Box>
   );
 }
-
-export type { CollectionId };

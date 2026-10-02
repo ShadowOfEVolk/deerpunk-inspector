@@ -4,6 +4,7 @@ import type { ConnectionState } from '../types/protocol';
 
 const STATUS_CONFIG: Record<ConnectionState, { color: string; label: string; glow: string }> = {
   connected: { color: 'green', label: 'ONLINE', glow: '0 0 8px #22c55e44' },
+  handshaking: { color: 'yellow', label: 'INIT', glow: '0 0 8px #eab30844' },
   connecting: { color: 'yellow', label: 'CONN', glow: '0 0 8px #eab30844' },
   disconnected: { color: 'gray', label: 'OFF', glow: 'none' },
   error: { color: 'red', label: 'ERR', glow: '0 0 8px #ef444444' },

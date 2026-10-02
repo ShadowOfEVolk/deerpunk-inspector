@@ -1,45 +1,26 @@
 import { Box, Text } from '@mantine/core';
-import { Inspector } from './Inspector';
-import { EventDetail } from './EventDetail';
-import { DefinitionDetail } from './DefinitionDetail';
-import type { InspectorSelection, InspectorConnection } from '../collections/types';
-import type { EntitySummary } from '../types/protocol';
+import { CollectionDetail } from './CollectionDetail';
+import type { InspectorSelection } from '../types/protocol';
+import type { useConnection } from '../hooks/useConnection';
+import type { CollectionRow } from '../lib/collectionWire';
 
 interface DetailPaneProps {
-  selection: InspectorSelection;
-  conn: InspectorConnection;
-  entitySummaries: EntitySummary[];
-  onSelectEntity: (index: number) => void;
+  selection: InspectorSelection | null;
+  conn: ReturnType<typeof useConnection>;
+  entityLookup: CollectionRow[];
+  onNavigateEntity: (index: number) => void;
 }
 
-function isDefinitionSelection(s: InspectorSelection): boolean {
-  return s != null && (s.kind === 'component-def' || s.kind === 'entity-def' || s.kind === 'event-def');
-}
-
-export function DetailPane({ selection, conn, entitySummaries, onSelectEntity }: DetailPaneProps) {
-  if (selection?.kind === 'event') {
+export function DetailPane({ selection, conn, entityLookup, onNavigateEntity }: DetailPaneProps) {
+  if (selection) {
     return (
-      <EventDetail
-        event={selection.event}
-        entities={entitySummaries}
-        eventSchemas={conn.eventSchemas}
-        onSelectEntity={onSelectEntity}
+      <CollectionDetail
+        selection={selection}
+        conn={conn}
+        entityLookup={entityLookup}
+        onNavigateEntity={onNavigateEntity}
       />
     );
-  }
-
-  if (selection?.kind === 'inspectable') {
-    return (
-      <Inspector
-        container={selection.container}
-        schemas={conn.schemas}
-        compIcons={conn.compIcons}
-      />
-    );
-  }
-
-  if (isDefinitionSelection(selection)) {
-    return <DefinitionDetail selection={selection} />;
   }
 
   return (

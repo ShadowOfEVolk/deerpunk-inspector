@@ -1,9 +1,13 @@
 import { Text, Group } from '@mantine/core';
-import type { EntitySummary } from '../types/protocol';
+
+export interface EntityLookupRow {
+  index: number;
+  classname: string;
+}
 
 interface EntityRefProps {
   edict: number;
-  entities: EntitySummary[];
+  entities: EntityLookupRow[];
   onSelect: (index: number) => void;
 }
 
